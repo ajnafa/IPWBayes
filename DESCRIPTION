@@ -16,16 +16,17 @@ Authors@R: c(
     comment = c(ORCID = "0000-0002-3948-3914")
     ))
 Description: R package for Bayesian Pseudo-Likelihood estimation of marginal
-structural models for causal inference in the social sciences. This is the
-companion package to Nafa and Heiss (2022) and I will come up with a better
-description for the package later
+structural models for causal inference in the social sciences using brms and 
+Stan
 Depends: 
     R (>= 4.2.0)
 Imports: 
-    brms (>= 2.17.0),
+    brms (>= 2.18.0),
     rstan (>= 2.26.13),
     loo (>= 2.5.1),
     posterior (>= 1.3.0),
+    arrow (>= 9.0.0.1),
+    glue (>= 1.6.2),
     stats,
     Rdpack
 RdMacros: Rdpack
