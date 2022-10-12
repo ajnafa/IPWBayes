@@ -65,7 +65,7 @@
     wts_z ~ beta(delta_prior_alpha, delta_prior_beta);
     ",
     block = "model",
-    position = "top"
+    position = "start"
   )
 
   # Add everything together
@@ -85,6 +85,10 @@
   # Extract the data for lambda and delta
   lambda <- weight_args$lambda
   delta <- weight_args$delta
+
+  # Extract the data for the weight priors
+  delta_prior_alpha <- weight_priors[1]
+  delta_prior_beta <- weight_priors[2]
 
   # Check that at least lambda and delta are present
   stopifnot(exprs = {
@@ -109,14 +113,14 @@
 
   # Shape prameter for the beta prior on the weights
   delta_prior_alpha <- stanvar(
-    x = weight_priors$delta_prior_alpha,
+    x = delta_prior_alpha,
     scode = "real<lower = 0> delta_prior_alpha;",
     block = "data"
   )
 
   # Shape prameter for the beta prior on the weights
   delta_prior_beta <- stanvar(
-    x = weight_priors$delta_prior_beta,
+    x = delta_prior_beta,
     scode = "real<lower = 0> delta_prior_beta;",
     block = "data"
   )

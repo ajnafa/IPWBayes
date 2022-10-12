@@ -1,55 +1,20 @@
 #' Custom family for the Gaussian Marginal Structural Model
 #'
 #'
+#'
+
+normal_ipw <- custom_family(
+  name = "normal_ipw",
+  dpars = c("mu", "sigma"),
+  links = "identity",
+  type = "real",
+  lb = c(NA, 0),
+  vars = c("w_tilde[n]", "N"),
+  loop = TRUE
+)
+
 
 .gaussian_stanvars <- function(multilevel, ...) {
-
-  ## Force multilevel option to FALSE, needs further testing
-  multilevel <- FALSE
-
-  # Code for the population-level gaussian pseudo-likelihood
-  "/* Weighted Log PDF of the Gaussian Pseudo-Likelihood for Population Level Effects
-   * Args:
-   *   y: the response vector of length N
-   *   mu: the linear predictor
-   *   sigma: noise parameter
-   *   w_tilde: the realized inverse probability weights
-   * Returns:
-   *   a scalar to be added to the log posterior
-   */
-   real normal_ipw_lpdf(vector y, vector mu, real sigma, vector w_tilde) {
-     real weighted_term;
-     weighted_term = 0.00;
-     weighted_term = weighted_term + w_tilde * normal_lpdf(y | mu, sigma);
-     return weighted_term;
-    }
-  " -> stan_pseudo_gaussian_density
-
-  # Code for the latent inverse probability of treatment weights
-  "
-  // Statistics from the Design Stage Model
-  vector<lower = 0>[N] wts_lambda; // Location of the Population-Level Weights
-  vector<lower = 0>[N] wts_delta; // Scale of the Population-Level Weights
-
-  // Prior on the scale of the weights
-  real<lower = 0> delta_prior_shape1;
-  real<lower = 0> delta_prior_shape2;
-  " -> latent_ipweights_data
-
-  # Code for the latent scale of the weights
-  latent_ipweights_par <- "vector<lower=0>[N] wts_z; // Standardized Latent IP Weights"
-
-  # Code for the regularized observation-level ip weights
-  "
-  // Compute the IPT Weights
-  vector[N] w_tilde; // IPT Weights
-  w_tilde = wts_lambda + wts_delta * wts_z[1];
-  "  -> latent_ipweights_tpar
-
-  # Code for the beta prior on the scale of the weights
-  "// Sampling the Weights
-  wts_z ~ beta(delta_prior_shape1, delta_prior_shape2);
-  " -> latent_ipweights_prior
 
   # If multilevel is true, use the double weighted approach from
   # Savitsky and Williams (2022) that re-weights the group level effects
