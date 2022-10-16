@@ -36,25 +36,20 @@
   return(msm_stanvars)
 }
 
-
-
-
 # A function for building the stanvars object for the parameters blocks
 .prep_model_parameters <- function(multilevel) {
 
   # Stanvar for the prior on the scale of the weights
   ipweights_par <- stanvar(
-    scode = "vector<lower=0>[N] wts_z; // Standardized Latent IP Weights",
+    scode = "vector<lower=0, upper=1>[N] wts_z; // Standardized Latent IP Weights",
     block = "parameters"
   )
 
   # Stanvar for the regularized observation-level ip weights
   ipweights_tpar <- stanvar(
-    scode = "
-    // Compute the IPT Weights
+    scode = "// Compute the IPT Weights
     vector[N] w_tilde; // IPT Weights
-    w_tilde = wts_lambda + wts_delta * wts_z[1];
-    ",
+    w_tilde = wts_lambda + wts_delta * wts_z[1];",
     block = "tparameters"
   )
 
@@ -83,8 +78,8 @@
   stopifnot("Weights must be a named list containing vectors for at least the lambda and delta parameters" = is.list(weight_args))
 
   # Extract the data for lambda and delta
-  lambda <- weight_args$lambda
-  delta <- weight_args$delta
+  wts_lambda <- weight_args$lambda
+  wts_delta <- weight_args$delta
 
   # Extract the data for the weight priors
   delta_prior_alpha <- weight_priors[1]
@@ -92,21 +87,20 @@
 
   # Check that at least lambda and delta are present
   stopifnot(exprs = {
-    !is.null(lambda) && !is.null(delta)
-    all.equal(length(lambda), length(delta))
+    !is.null(wts_lambda) && !is.null(wts_delta)
+    all.equal(length(wts_lambda), length(wts_delta))
   })
 
   # Location of the inverse probability of treatment weights
   ipweights_lambda <- stanvar(
-    x = lambda,
-    scode = "// Statistics from the Design Stage Model
-    vector<lower = 0>[N] wts_lambda; // Location of the Population-Level Weights",
+    x = wts_lambda,
+    scode = "vector<lower = 0>[N] wts_lambda; // Location of the Population-Level Weights",
     block = "data"
   )
 
   # Scale of the inverse probability of treatment weights
   ipweights_delta <- stanvar(
-    x = delta,
+    x = wts_delta,
     scode = "vector<lower = 0>[N] wts_delta; // Scale of the Population-Level Weights",
     block = "data"
   )
@@ -134,7 +128,7 @@
   }
 
   # Add everything together
-  ipw_weights_data <- c(ipweights_delta, ipweights_lambda, delta_prior_alpha, delta_prior_beta)
+  ipw_weights_data <- c(ipweights_lambda, ipweights_delta, delta_prior_alpha, delta_prior_beta)
 
   # Return the combined stanvars object
   return(ipw_weights_data)
@@ -158,10 +152,12 @@
       * Returns:
       *   a scalar to be added to the log posterior
     */
-    real poisson_ipw_lpmf(int y, vector mu, vector w_tilde){
+    real poisson_ipw_lpmf(int[] y, vector mu, vector w_tilde, int N){
       real weighted_term;
       weighted_term = 0.00;
-      weighted_term = weighted_term + w_tilde * poisson_log_lpmf(y | mu);
+      for (n in 1:N) {
+        weighted_term = weighted_term + w_tilde[n] * poisson_log_lpmf(y[n] | mu[n]);
+      }
       return weighted_term;
     }" -> stan_pseudo_likelihood
   }
@@ -178,10 +174,12 @@
     * Returns:
       *   a scalar to be added to the log posterior
     */
-      real normal_ipw_lpdf(vector y, vector mu, real sigma, vector w_tilde) {
+      real normal_ipw_lpdf(vector y, vector mu, real sigma, vector w_tilde, int N) {
         real weighted_term;
         weighted_term = 0.00;
-        weighted_term = weighted_term + w_tilde * normal_lpdf(y | mu, sigma);
+        for (n in 1:N) {
+          weighted_term = weighted_term + w_tilde[n] * normal_lpdf(y[n] | mu[n], sigma);
+        }
         return weighted_term;
       }" -> stan_pseudo_likelihood
 
@@ -190,21 +188,43 @@
 
   if (family == "zero_inflated_poisson_ipw") {
 
-    "/* Weighted Log PDF of the Gaussian Pseudo-Likelihood for Population Level Effects
-    * Args:
-      *   y: the response vector of length N
-    *   mu: the linear predictor
-    *   sigma: noise parameter
-    *   w_tilde: the realized inverse probability weights
-    * Returns:
-      *   a scalar to be added to the log posterior
-    */
-      real normal_ipw_lpdf(vector y, vector mu, real sigma, vector w_tilde) {
-        real weighted_term;
-        weighted_term = 0.00;
-        weighted_term = weighted_term + w_tilde * normal_lpdf(y | mu, sigma);
-        return weighted_term;
-      }" -> stan_pseudo_likelihood
+    "/* Log-PDF of the Zero-inflated poisson of a single response
+   * log parameterization for the poisson part
+   * Args:
+   *   y: the response value
+   *   eta: linear predictor for poisson distribution
+   *   zi: zero-inflation probability
+   * Returns:
+   *   a scalar to be added to the log posterior
+   */
+   real zero_inflated_poisson_log_lpmf(int y, real eta, real zi) {
+     if (y == 0) {
+       return log_sum_exp(bernoulli_lpmf(1 | zi),
+                          bernoulli_lpmf(0 | zi) +
+                          poisson_log_lpmf(0 | eta));
+      } else {
+        return bernoulli_lpmf(0 | zi) +
+               poisson_log_lpmf(y | eta);
+     }
+   }
+
+   /* Weighted Log-PDF of the Zero-Inflated Poisson Pseudo-Likelihood
+   * Args:
+   *   y: the response vector of length N
+   *   mu: the linear predictor
+   *   w_tilde: the realized inverse probability weights
+   *   N: the number of observations
+   * Returns:
+   *   a scalar to be added to the log posterior
+   */
+   real zero_inflated_poisson_ipw_log_lpmf(int[] y, vector mu, real zi, vector w_tilde, int N) {
+     real weighted_term;
+     weighted_term = 0.00;
+     for (n in 1:N) {
+        weighted_term = weighted_term + w_tilde[n] * zero_inflated_poisson_log_lpmf(y[n] | mu[n], zi);
+     }
+     return weighted_term;
+   }" -> stan_pseudo_likelihood
   }
 
   # stanvar object for the pseudo-likelihood
