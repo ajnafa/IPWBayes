@@ -64,7 +64,11 @@
   )
 
   # Add everything together
-  ipweights_parameters <- c(ipweights_par, ipweights_tpar, ipweights_prior_sampling)
+  ipweights_parameters <- c(
+    ipweights_par,
+    ipweights_tpar,
+    ipweights_prior_sampling
+    )
 
   # Return the combined stanvars
   return(ipweights_parameters)
@@ -239,24 +243,6 @@
     # Print a message saying multilevel support is pending
     print("Support for weighted random effects is still under development")
 
-    # "/* Weighted Log PDF of the Gaussian Pseudo-Likelihood for Group Level Effects
-    # * Args:
-    #   *   y: the response vector of length N
-    # *   mu: the linear predictor
-    # *   sigma: noise parameter
-    # *   w_tilde: the realized inverse probability weights
-    # *   N: the number of observations
-    # * Returns:
-    #   *   a scalar to be added to the log posterior
-    # */
-    #   real normal_ipw_re_lpdf(vector y, vector mu, real sigma, vector w_tilde, int N) {
-    #     real weighted_term;
-    #     weighted_term = 0.00;
-    #     for (n in 1:N) {
-    #       weighted_term = weighted_term + w_tilde[n] * normal_lpdf(y[n] | mu[n], sigma);
-    #     }
-    #     return weighted_term;
-    #   }" -> stan_weighted_random_effects
   }
 
   # Return the stanvar for the pseudo-likelihood
